@@ -140,6 +140,18 @@ fn decode_bluetooth(buf: [u8; 78]) -> ControllerRawState {
         accel_x: u16::from_le_bytes([buf[21], buf[22]]),
         accel_y: u16::from_le_bytes([buf[23], buf[24]]),
         accel_z: u16::from_le_bytes([buf[25], buf[26]]),
+
+        // Touch position data is organized like this:
+        // -----------------------------------------
+        //                v-----x_pos----v
+        // |0000|0000|0000|0000|0000|0000|0000|0000|
+        //  ^----y_pos----^              ^--zeros--^
+        // -----------------------------------------
+        //
+        // So to read it:
+        //    - shift to the correct location
+        //    - mask the last 3 bytes
+        //    - store the result in a u16
         touch_1_x: {
             let data = u32::from_le_bytes([0, buf[38], buf[39], buf[40]]);
             ((data >> 8) & 0x00000FFF) as u16

@@ -13,7 +13,6 @@ struct ControllerRawState {
     down_right: bool,
     left: bool,
     right: bool,
-    square: bool,
     triangle: bool,
     circle: bool,
     x: bool,
@@ -58,10 +57,6 @@ impl std::fmt::Display for ControllerRawState {
 fn main() -> ! {
     let api = hidapi::HidApi::new().unwrap();
 
-    // for device in api.device_list() {
-    //     println!("{:#?}", device.serial_number());
-    // }
-
     let (vid, pid) = (1356, 2508);
     let device = match api.open(vid, pid) {
         Ok(device) => device,
@@ -71,10 +66,15 @@ fn main() -> ! {
         }
     };
 
-    let mut buf = [0u8; 78];
-    let report = device.read(&mut buf);
+    let mut report_buffer = [0u8; 78];
 
-    let conn_type = match report {
+    // device.read returns Ok(size) where size is the size of the report
+    // written on report_buffer
+    let report_size = device.read(&mut report_buffer);
+
+    // The type of connection is discovered based on the size
+    // of the report written on buf
+    let conn_type = match report_size {
         Ok(78) => ConnectionType::Bluetooth,
         Ok(64) => ConnectionType::Usb,
         Ok(_) => panic!(),
@@ -84,12 +84,16 @@ fn main() -> ! {
     println!("Connected with {:#?}", conn_type);
 
     loop {
-        device.read(&mut buf).expect("Failed to get report.");
+        device
+            .read(&mut report_buffer)
+            .expect("Failed to get report.");
 
         let raw_state = match conn_type {
-            ConnectionType::Bluetooth => decode_bluetooth(buf),
-            ConnectionType::Usb => _decode_usb(buf),
+            ConnectionType::Bluetooth => decode_bluetooth(report_buffer),
+            ConnectionType::Usb => _decode_usb(report_buffer),
         };
+
+        std::thread::sleep(std::time::Duration::from_millis(4));
     }
 }
 

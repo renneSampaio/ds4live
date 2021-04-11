@@ -90,15 +90,81 @@ fn main() -> ! {
 
         let raw_state = match conn_type {
             ConnectionType::Bluetooth => decode_bluetooth(report_buffer),
-            ConnectionType::Usb => _decode_usb(report_buffer),
+            ConnectionType::Usb => decode_usb(report_buffer),
         };
 
         std::thread::sleep(std::time::Duration::from_millis(4));
     }
 }
 
-fn _decode_usb(_buf: [u8; 78]) -> ControllerRawState {
-    todo!()
+fn decode_usb(buf: [u8; 78]) -> ControllerRawState {
+    ControllerRawState {
+        up: buf[5] == 0b0000,
+        up_left: buf[5] == 0b0111,
+        up_right: buf[5] == 0b0001,
+        down: buf[5] == 0b0100,
+        down_left: buf[5] == 0b0101,
+        down_right: buf[5] == 0b0011,
+        left: buf[5] == 0b0110,
+        right: buf[5] == 0b0010,
+        triangle: (buf[5] & 0b10000000) == 128,
+        circle: (buf[5] & 0b01000000) == 64,
+        x: (buf[5] & 0b00100000) == 32,
+        square: (buf[5] & 0b00010000) == 16,
+        touch_click: (buf[7] & 0b00000010) == 2,
+        l1: (buf[6] & 0b00000001) == 1,
+        r1: (buf[6] & 0b00000010) == 2,
+        l2: (buf[6] & 0b00000100) == 4,
+        r2: (buf[6] & 0b00001000) == 8,
+        options: (buf[6] & 0b00100000) == 32,
+        share: (buf[6] & 0b00010000) == 16,
+        l3: (buf[6] & 0b01000000) == 64,
+        r3: (buf[6] & 0b10000000) == 128,
+        touch_1: (buf[35] & 0b10000000) == 0,
+        touch_2: (buf[39] & 0b10000000) == 0,
+        left_axis_x: buf[1],
+        left_axis_y: buf[2],
+        right_axis_x: buf[3],
+        right_axis_y: buf[4],
+        l2_trigger: buf[8],
+        r2_trigger: buf[9],
+        touch_timestamp: buf[34],
+        gyro_timestamp: u16::from_le_bytes([buf[10], buf[11]]),
+        gyro_x: u16::from_le_bytes([buf[13], buf[14]]),
+        gyro_y: u16::from_le_bytes([buf[15], buf[16]]),
+        gyro_z: u16::from_le_bytes([buf[17], buf[18]]),
+        accel_x: u16::from_le_bytes([buf[19], buf[20]]),
+        accel_y: u16::from_le_bytes([buf[21], buf[22]]),
+        accel_z: u16::from_le_bytes([buf[23], buf[24]]),
+
+        // Touch position data is organized like this:
+        // -----------------------------------------
+        //                v-----x_pos----v
+        // |0000|0000|0000|0000|0000|0000|0000|0000|
+        //  ^----y_pos----^              ^--zeros--^
+        // -----------------------------------------
+        //
+        // So to read it:
+        //    - shift to the correct location
+        //    - mask the last 3 bytes
+        //    - store the result in a u16
+        touch_1_x: {
+            let data = u32::from_le_bytes([0, buf[36], buf[37], buf[38]]);
+            ((data >> 8) & 0x00000FFF) as u16
+        },
+        touch_1_y: {
+            let data = u32::from_le_bytes([0, buf[36], buf[37], buf[38]]);
+            ((data >> 20) & 0x00000FFF) as u16
+        },
+        touch_2_x: {
+            let data = u32::from_le_bytes([0, buf[40], buf[41], buf[42]]);
+            ((data >> 8) & 0x00000FFF) as u16
+        },
+        touch_2_y: {
+            let data = u32::from_le_bytes([0, buf[40], buf[41], buf[42]]);
+            ((data >> 20) & 0x00000FFF) as u16
+        },
+    }
 }
 
 fn decode_bluetooth(buf: [u8; 78]) -> ControllerRawState {
